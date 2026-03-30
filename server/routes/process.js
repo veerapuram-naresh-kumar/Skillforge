@@ -108,106 +108,116 @@ router.post('/profile/:id', async (req, res) => {
             skillGapScore = 0;
         }
 
-        // 7. Extract Resume Parsing JSON dynamically using Gemini AI
-        const { GoogleGenerativeAI } = require("@google/generative-ai");
-        const fs = require('fs');
-        const path = require('path');
-        const axios = require('axios');
+        // 7. Extract Resume Parsing JSON dynamically using Gemini AI (ONLY IF RESUME EXISTS)
+        if (student.resumeUrl) {
+            const { GoogleGenerativeAI } = require("@google/generative-ai");
+            const fs = require('fs');
+            const path = require('path');
+            const axios = require('axios');
 
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'AIzaSyBMTzJhNP4n2svro0iYTjXgQozAyBAKziM');
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'AIzaSyBMTzJhNP4n2svro0iYTjXgQozAyBAKziM');
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        let dataBuffer;
-        try {
-            if (student.resumeUrl.startsWith('http')) {
-                const response = await axios.get(student.resumeUrl, { responseType: 'arraybuffer' });
-                dataBuffer = response.data;
-            } else {
-                dataBuffer = fs.readFileSync(path.resolve(student.resumeUrl));
-            }
-        } catch (err) {
-            console.error("PDF Read Error:", err);
-            dataBuffer = Buffer.from("No readable PDF buffer");
-        }
-
-        const prompt = `
-        Analyze the attached resume document and extract the information into a strict JSON object with this exact structure:
-        {
-          "phone": "string or empty",
-          "roleSummary": "string or empty",
-          "education": {
-            "degree": "string",
-            "college": "string",
-            "cgpa": number or evaluate if text says percentage
-          },
-          "projects": ["string array of project names"],
-          "codingProfiles": {
-            "leetcodeRating": number or 0,
-            "codechefRating": number or 0,
-            "codeforcesRating": number or 0,
-            "problemsSolved": number or 0
-          },
-          "certifications": ["string array"],
-          "achievements": ["string array"],
-          "languages": ["string array"],
-          "interests": ["string array"],
-          "knownSkills": ["string array of all technical skills discovered"],
-          "learningPath": ["string array: Provide exactly 5 prioritized, actionable learning steps/technologies the user must master next to achieve their Target Role of: ${student.targetJobRole || 'Software Engineer'}. Base this heavily on the skills they currently lack in their resume."]
-        }
-        
-        Only return the JSON object, NO markdown formatting, NO backticks.
-        `;
-
-        try {
-            const result = await model.generateContent([
-                prompt,
-                { inlineData: { data: dataBuffer.toString("base64"), mimeType: "application/pdf" } }
-            ]);
-            let responseText = result.response.text().trim();
-            if (responseText.startsWith('\`\`\`json')) responseText = responseText.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '');
-            else if (responseText.startsWith('\`\`\`')) responseText = responseText.replace(/\`\`\`/g, '');
-            
-            const parsedData = JSON.parse(responseText);
-
-            student.extractedData = parsedData;
-
-            // Automatically sync extracted data into the main User Profile fields so it shows up everywhere!
-            if (parsedData.education) {
-                if (parsedData.education.college && !student.college) student.college = parsedData.education.college;
-                if (parsedData.education.degree && !student.branch) student.branch = parsedData.education.degree;
-            }
-            if (parsedData.githubLink && !student.githubLink) student.githubLink = parsedData.githubLink;
-            if (parsedData.leetcodeLink && !student.leetcodeLink) student.leetcodeLink = parsedData.leetcodeLink;
-
-            // Merge parsed knownSkills natively discovered from the resume
-            const parsedSkillsList = parsedData.knownSkills || [];
-            parsedSkillsList.forEach(ps => {
-                const mappedPs = normalizeAndMapSkills([ps])[0];
-                if (mappedPs && !studentSkillNames.includes(mappedPs)) {
-                    studentSkillNames.push(mappedPs);
-                    processedSkillVector.push({ skill: mappedPs, score: 2 });
+            let dataBuffer;
+            try {
+                if (student.resumeUrl.startsWith('http')) {
+                    const response = await axios.get(student.resumeUrl, { responseType: 'arraybuffer' });
+                    dataBuffer = response.data;
+                } else {
+                    dataBuffer = fs.readFileSync(path.resolve(student.resumeUrl));
                 }
-            });
+            } catch (err) {
+                console.error("PDF Read Error:", err);
+                dataBuffer = Buffer.from("No readable PDF buffer");
+            }
 
-            if (parsedData.learningPath && Array.isArray(parsedData.learningPath)) {
-                student.learningPath = parsedData.learningPath;
+            const prompt = `
+            Analyze the attached resume document and extract the information into a strict JSON object with this exact structure:
+            {
+              "phone": "string or empty",
+              "roleSummary": "string or empty",
+              "education": {
+                "degree": "string",
+                "college": "string",
+                "cgpa": number or evaluate if text says percentage
+              },
+              "projects": ["string array of project names"],
+              "codingProfiles": {
+                "leetcodeRating": number or 0,
+                "codechefRating": number or 0,
+                "codeforcesRating": number or 0,
+                "problemsSolved": number or 0
+              },
+              "certifications": ["string array"],
+              "achievements": ["string array"],
+              "languages": ["string array"],
+              "interests": ["string array"],
+              "knownSkills": ["string array of all technical skills discovered"],
+              "learningPath": ["string array: Provide exactly 5 prioritized, actionable learning steps/technologies the user must master next to achieve their Target Role of: ${student.targetJobRole || 'Software Engineer'}. Base this heavily on the skills they currently lack in their resume."]
             }
             
-            // Recalculate gap with injected pdf parsed skills locally
-            matchCount = 0; missing = [];
-            requiredSkills.forEach(reqSkill => {
-                if (studentSkillNames.includes(reqSkill)) matchCount++;
-                else missing.push(reqSkill);
-            });
-            
-            if (totalRequired > 0) {
-                readinessScore = Math.round((matchCount / totalRequired) * 100);
-                skillGapScore = 100 - readinessScore;
+            Only return the JSON object, NO markdown formatting, NO backticks.
+            `;
+
+            try {
+                const result = await model.generateContent([
+                    prompt,
+                    { inlineData: { data: dataBuffer.toString("base64"), mimeType: "application/pdf" } }
+                ]);
+                let responseText = result.response.text().trim();
+                if (responseText.startsWith('\`\`\`json')) responseText = responseText.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '');
+                else if (responseText.startsWith('\`\`\`')) responseText = responseText.replace(/\`\`\`/g, '');
+                
+                const parsedData = JSON.parse(responseText);
+
+                student.extractedData = parsedData;
+
+                // Sync extracted data
+                if (parsedData.education) {
+                    if (parsedData.education.college && !student.college) student.college = parsedData.education.college;
+                    if (parsedData.education.degree && !student.branch) student.branch = parsedData.education.degree;
+                }
+                if (parsedData.githubLink && !student.githubLink) student.githubLink = parsedData.githubLink;
+                if (parsedData.leetcodeLink && !student.leetcodeLink) student.leetcodeLink = parsedData.leetcodeLink;
+
+                const parsedSkillsList = parsedData.knownSkills || [];
+                parsedSkillsList.forEach(ps => {
+                    const mappedPs = normalizeAndMapSkills([ps])[0];
+                    if (mappedPs && !studentSkillNames.includes(mappedPs)) {
+                        studentSkillNames.push(mappedPs);
+                        processedSkillVector.push({ skill: mappedPs, score: 2 });
+                    }
+                });
+
+                if (parsedData.learningPath && Array.isArray(parsedData.learningPath)) {
+                    student.learningPath = parsedData.learningPath;
+                }
+            } catch(aiError) {
+                console.error("Gemini Extraction Error:", aiError);
+                student.extractedData = { phone: "Parse Failed", roleSummary: "AI could not parse Document", projects: [] };
             }
-        } catch(aiError) {
-             console.error("Gemini Extraction Error:", aiError);
-             student.extractedData = { phone: "Parse Failed", roleSummary: "AI could not parse Document", projects: [] }; // fallback
+        } else {
+            // Fallback for No Resume: Generate basic learning path from missing skills
+            const fallbackPath = missing.slice(0, 5).map(s => `Master ${s.toUpperCase()} - Essential for ${student.targetJobRole}`);
+            if (fallbackPath.length === 0) fallbackPath.push("Keep building advanced projects!");
+            student.learningPath = fallbackPath;
         }
+
+        // Final recalculation of match/missing after any resume syncs
+        matchCount = 0; missing = [];
+        requiredSkills.forEach(reqSkill => {
+            if (studentSkillNames.includes(reqSkill)) matchCount++;
+            else missing.push(reqSkill);
+        });
+        
+        if (totalRequired > 0) {
+            readinessScore = Math.round((matchCount / totalRequired) * 100);
+            skillGapScore = 100 - readinessScore;
+        } else {
+            readinessScore = 100;
+            skillGapScore = 0;
+        }
+
 
         // Update the database
         student.processedSkillVector = processedSkillVector;

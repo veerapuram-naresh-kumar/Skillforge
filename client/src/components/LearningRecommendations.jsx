@@ -110,6 +110,22 @@ const SkillCard = ({ item, index }) => {
                         </div>
                     )}
 
+                    {/* Revision Topics */}
+                    {item.revisionTopics?.length > 0 && (
+                        <div>
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1.5">
+                                <span>📌</span> Key Revision Topics
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {item.revisionTopics.map((topic, i) => (
+                                    <span key={i} className="px-2 py-1 rounded bg-slate-800/80 border border-white/5 text-[10px] text-slate-300 font-medium">
+                                        {topic}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Docs */}
                     {item.docs?.length > 0 && (
                         <div>
@@ -130,6 +146,23 @@ const SkillCard = ({ item, index }) => {
                                         </svg>
                                         {doc.label}
                                     </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Practice Projects */}
+                    {item.practiceProjects?.length > 0 && (
+                        <div>
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1.5">
+                                <span>🛠️</span> Hands-on Practice Projects
+                            </p>
+                            <div className="space-y-2">
+                                {item.practiceProjects.map((project, i) => (
+                                    <div key={i} className="p-2 rounded-lg bg-emerald-900/20 border border-emerald-500/10">
+                                        <p className="text-[11px] font-bold text-emerald-400">{project.title}</p>
+                                        <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{project.desc}</p>
+                                    </div>
                                 ))}
                             </div>
                         </div>
@@ -156,7 +189,7 @@ const SkillCard = ({ item, index }) => {
     );
 };
 
-const LearningRecommendations = ({ recommendations, jobReady, loading }) => {
+const LearningRecommendations = ({ recommendations, matchedRecommendations, jobReady, loading }) => {
     if (loading) {
         return (
             <div className="mt-8">
@@ -188,32 +221,62 @@ const LearningRecommendations = ({ recommendations, jobReady, loading }) => {
         );
     }
 
-    if (!recommendations || recommendations.length === 0) return null;
+    const hasMissing = recommendations && recommendations.length > 0;
+    const hasMatched = matchedRecommendations && matchedRecommendations.length > 0;
+
+    if (!hasMissing && !hasMatched) return null;
 
     return (
-        <div className="mt-8">
-            {/* Section Header */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <span className="text-2xl">📚</span>
-                    <div>
-                        <h2 className="text-lg font-bold text-white leading-tight">Learning Recommendations</h2>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Personalized resources for every missing skill</p>
+        <div className="mt-8 space-y-10">
+            {/* 1. Missing Skills (Learning Recommendations) */}
+            {hasMissing && (
+                <div>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">📚</span>
+                            <div>
+                                <h2 className="text-lg font-bold text-white leading-tight">Learning Plan: Missing Skills</h2>
+                                <p className="text-[11px] text-slate-500 mt-0.5">Master these to complete your profile for this role</p>
+                            </div>
+                        </div>
+                        <span className="bg-red-500/20 text-red-300 text-xs px-3 py-1.5 rounded-lg border border-red-500/30 font-bold font-mono">
+                            {recommendations.length} skill{recommendations.length !== 1 ? 's' : ''} to learn
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {recommendations.map((item, i) => (
+                            <SkillCard key={item.skill} item={item} index={i} />
+                        ))}
                     </div>
                 </div>
-                <span className="bg-indigo-500/20 text-indigo-300 text-xs px-3 py-1.5 rounded-lg border border-indigo-500/30 font-bold font-mono">
-                    {recommendations.length} skill{recommendations.length !== 1 ? 's' : ''} to master
-                </span>
-            </div>
+            )}
 
-            {/* Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {recommendations.map((item, i) => (
-                    <SkillCard key={item.skill} item={item} index={i} />
-                ))}
-            </div>
+            {/* 2. Matched Skills (Revise Concepts) */}
+            {hasMatched && (
+                <div>
+                    <div className="flex items-center justify-between mb-4 mt-8 pt-8 border-t border-white/5">
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">🔄</span>
+                            <div>
+                                <h2 className="text-lg font-bold text-white leading-tight">Revise & Strengthen Concepts</h2>
+                                <p className="text-[11px] text-slate-500 mt-0.5">Advanced resources for skills you already possess</p>
+                            </div>
+                        </div>
+                        <span className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold font-mono">
+                            {matchedRecommendations.length} skill{matchedRecommendations.length !== 1 ? 's' : ''} to review
+                        </span>
+                    </div>
 
-            <p className="text-[10px] text-slate-600 text-center mt-4 font-mono">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-90 transition-opacity hover:opacity-100">
+                        {matchedRecommendations.map((item, i) => (
+                            <SkillCard key={item.skill} item={item} index={i + 10} />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <p className="text-[10px] text-slate-600 text-center mt-4 font-mono pb-8">
                 ✨ All resources are curated & verified. No external APIs — 100% static, fast &amp; reliable.
             </p>
         </div>

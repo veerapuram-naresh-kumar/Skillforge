@@ -17,7 +17,8 @@ const Profile = () => {
 
     const [formData, setFormData] = useState({
         name: '', college: '', branch: '', year: '',
-        githubLink: '', leetcodeLink: '', targetJobRole: 'MERN Developer'
+        githubLink: '', leetcodeLink: '', targetJobRole: 'MERN Developer',
+        cgpa: '', degree: ''
     });
     const [skills, setSkills] = useState([]);
     const [skillInput, setSkillInput] = useState('');
@@ -43,7 +44,9 @@ const Profile = () => {
                         year: res.data.year || '',
                         githubLink: res.data.githubLink || '',
                         leetcodeLink: res.data.leetcodeLink || '',
-                        targetJobRole: res.data.targetJobRole || res.data.targetRole || 'MERN Developer'
+                        targetJobRole: res.data.targetJobRole || res.data.targetRole || 'MERN Developer',
+                        cgpa: res.data.cgpa || res.data.extractedData?.education?.cgpa || '',
+                        degree: res.data.degree || res.data.extractedData?.education?.degree || ''
                     });
                     setSkills(res.data.knownSkills || []);
                 }
@@ -214,24 +217,50 @@ const Profile = () => {
 
                     {!isEditing && studentData ? (
                         <div className="space-y-8 animate-fade-in">
-                            <div className="flex items-center gap-6 pb-6 border-b border-white/10">
-                                <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-3xl font-bold shadow-lg shadow-indigo-500/30">
-                                    {formData.name.charAt(0).toUpperCase()}
+                            <div className="flex items-center justify-between gap-6 pb-6 border-b border-white/10">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-3xl font-bold shadow-lg shadow-indigo-500/30">
+                                        {formData.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-white">{formData.name}</h2>
+                                        <p className="text-indigo-400 font-semibold">{formData.targetJobRole}</p>
+                                        <p className="text-slate-400 text-sm mt-1">{user.email}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="text-2xl font-bold text-white">{formData.name}</h2>
-                                    <p className="text-indigo-400 font-semibold">{formData.targetJobRole}</p>
-                                    <p className="text-slate-400 text-sm mt-1">{user.email}</p>
-                                </div>
+
+                                {/* Stored Resume Badge — top right of header */}
+                                {(studentData?.resumeFileName || studentData?.resumeUrl) && (
+                                    <a
+                                        href={`http://localhost:5000/student/view-resume/${user.email}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        title={studentData.resumeFileName || 'View Resume'}
+                                        className="flex flex-col items-center gap-1.5 group self-start"
+                                    >
+                                        <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-400 hover:bg-indigo-500/20 transition-all px-4 py-2 rounded-xl">
+                                            <span className="text-xl">📄</span>
+                                            <div className="text-left">
+                                                <p className="text-indigo-300 text-xs font-bold uppercase tracking-wide leading-none mb-0.5">Resume on File</p>
+                                                <p className="text-slate-400 text-xs truncate max-w-[160px]">
+                                                    {studentData.resumeFileName || 'Resume.pdf'}
+                                                </p>
+                                            </div>
+                                            <span className="text-slate-500 group-hover:text-indigo-400 transition-colors text-xs ml-1">↗</span>
+                                        </div>
+                                    </a>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div>
                                     <h3 className="text-sm uppercase tracking-widest text-slate-500 font-bold mb-4">Academic Details</h3>
                                     <ul className="space-y-4 shadow-inner bg-slate-900/30 p-5 rounded-xl border border-white/5">
-                                        <li><span className="text-slate-400 text-sm block">College</span> <span className="font-semibold">{formData.college}</span></li>
-                                        <li><span className="text-slate-400 text-sm block">Branch / Major</span> <span className="font-semibold">{formData.branch}</span></li>
-                                        <li><span className="text-slate-400 text-sm block">Year of Study</span> <span className="font-semibold">{formData.year}</span></li>
+                                        <li><span className="text-slate-400 text-sm block">College</span> <span className="font-semibold">{formData.college || <span className="text-slate-500 italic">Not set</span>}</span></li>
+                                        <li><span className="text-slate-400 text-sm block">Degree</span> <span className="font-semibold">{formData.degree || <span className="text-slate-500 italic">Not set</span>}</span></li>
+                                        <li><span className="text-slate-400 text-sm block">Branch / Major</span> <span className="font-semibold">{formData.branch || <span className="text-slate-500 italic">Not set</span>}</span></li>
+                                        <li><span className="text-slate-400 text-sm block">Year of Study</span> <span className="font-semibold">{formData.year || <span className="text-slate-500 italic">Not set</span>}</span></li>
+                                        <li><span className="text-slate-400 text-sm block">CGPA / Percentage</span> <span className="font-semibold">{formData.cgpa ? (parseFloat(formData.cgpa) <= 10 ? `${formData.cgpa} CGPA` : `${formData.cgpa}%`) : <span className="text-slate-500 italic">Not set</span>}</span></li>
                                     </ul>
                                 </div>
 
@@ -289,6 +318,14 @@ const Profile = () => {
                                     <input required type="text" name="year" value={formData.year} onChange={onChange} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500" />
                                 </div>
                                 <div>
+                                    <label className="block text-sm text-slate-300 font-semibold mb-2">Degree <span className="text-slate-500 font-normal text-xs">(e.g. B.Tech, MCA)</span></label>
+                                    <input type="text" name="degree" value={formData.degree} onChange={onChange} placeholder="e.g. B.Tech in CSE" className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-300 font-semibold mb-2">CGPA / Percentage <span className="text-slate-500 font-normal text-xs">(e.g. 8.5 or 85)</span></label>
+                                    <input type="text" name="cgpa" value={formData.cgpa} onChange={onChange} placeholder="e.g. 8.5 or 85" className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500" />
+                                </div>
+                                <div>
                                     <label className="block text-sm text-slate-300 font-semibold mb-2">Target Job Role <span className="text-indigo-400 font-normal text-xs">(determines readiness AI)</span></label>
                                     <select name="targetJobRole" value={formData.targetJobRole} onChange={onChange} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 text-white">
                                         {roles.map(r => <option key={r} value={r}>{r}</option>)}
@@ -326,16 +363,21 @@ const Profile = () => {
                                 </div>
                             </div>
 
-                            {/* Resume Upload (Optional on Edit) */}
-                            <div className="mt-6 border-2 border-dashed border-slate-600 bg-slate-900/30 rounded-xl p-6 text-center hover:bg-slate-800 transition cursor-pointer relative">
-                                <input type="file" accept="application/pdf" onChange={onFileChange} className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer" />
-                                {resumeFile ? (
-                                    <div className="text-indigo-300 font-medium">New Record Selected: {resumeFile.name}</div>
-                                ) : (
-                                    <div className="text-slate-400 font-medium text-sm">
-                                        {studentData ? "Click to upload a newer version of your Resume PDF (Optional)" : "Click to upload your Resume PDF (Required)"}
-                                    </div>
-                                )}
+                            {/* Resume Upload (Optional) */}
+                            <div className="mt-6">
+                                <label className="block text-sm text-slate-300 font-semibold mb-2">
+                                    Resume PDF <span className="text-slate-500 font-normal text-xs">(Optional — auto-fills profile fields when uploaded)</span>
+                                </label>
+                                <div className="border-2 border-dashed border-slate-600 bg-slate-900/30 rounded-xl p-6 text-center hover:bg-slate-800 transition cursor-pointer relative">
+                                    <input type="file" accept="application/pdf" onChange={onFileChange} className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer" />
+                                    {resumeFile ? (
+                                        <div className="text-indigo-300 font-medium">📄 Selected: {resumeFile.name}</div>
+                                    ) : (
+                                        <div className="text-slate-400 font-medium text-sm">
+                                            Click or drag to upload your Resume PDF <span className="text-slate-500">(Optional)</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <button type="submit" disabled={isSubmitting} className="w-full relative overflow-hidden group bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] mt-8 disabled:opacity-50">

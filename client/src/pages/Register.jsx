@@ -63,10 +63,6 @@ const Register = () => {
             return;
         }
 
-        if (!resumeFile) {
-            toast.error('Resume PDF is required.');
-            return;
-        }
 
         setIsLoading(true);
 
@@ -94,7 +90,9 @@ const Register = () => {
             }
             
             data.append('knownSkills', JSON.stringify(finalSkills));
-            data.append('resume', resumeFile);
+            if (resumeFile) {
+                data.append('resume', resumeFile);
+            }
 
             const studentRes = await axios.post('http://localhost:5000/student/register', data, {
                 headers: { 'Content-Type': 'multipart/form-data' }
@@ -204,7 +202,7 @@ const Register = () => {
 
                     {/* Resume Upload */}
                     <div>
-                        <label className="block text-sm text-slate-300 font-semibold mb-2">Upload Resume (PDF) <span className="text-red-500">*</span></label>
+                        <label className="block text-sm text-slate-300 font-semibold mb-2">Upload Resume (PDF) <span className="text-slate-500 text-xs font-normal">(Optional — auto-fills profile fields)</span></label>
                         <div className={`border-2 border-dashed ${resumeFile ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-600 bg-slate-900/30'} rounded-xl p-8 text-center hover:bg-slate-700/50 hover:border-indigo-400 transition cursor-pointer relative`}>
                             <input
                                 type="file" accept="application/pdf" onChange={onFileChange} 

@@ -84,10 +84,12 @@ router.post('/register', upload.single('resume'), async (req, res) => {
       }
     }
 
-    // Normalize URL for frontend if local
-    let finalUrl = resumeUrl || req.body.resumeUrl;
-    if (finalUrl && !finalUrl.startsWith('http') && !useCloudinary) {
-      finalUrl = `http://localhost:5000/${finalUrl}`;
+    // Normalize URL for frontend
+    let finalUrl = "";
+    if (req.file) {
+      finalUrl = useCloudinary ? req.file.path : `http://localhost:5000/${req.file.path.replace(/\\/g, '/')}`;
+    } else if (req.body.resumeUrl) {
+      finalUrl = req.body.resumeUrl;
     }
 
     const newStudent = new Student({
@@ -181,7 +183,7 @@ router.put('/profileByEmail/:email', upload.single('resume'), async (req, res) =
     }
 
     const {
-      name, college, branch, year, githubLink, leetcodeLink, knownSkills, targetJobRole
+      name, college, branch, year, githubLink, leetcodeLink, knownSkills, targetJobRole, cgpa, degree
     } = req.body;
 
     // Process skills
@@ -202,6 +204,8 @@ router.put('/profileByEmail/:email', upload.single('resume'), async (req, res) =
     if (githubLink !== undefined) student.githubLink = githubLink;
     if (leetcodeLink !== undefined) student.leetcodeLink = leetcodeLink;
     if (targetJobRole) student.targetJobRole = targetJobRole;
+    if (cgpa !== undefined) student.cgpa = cgpa;
+    if (degree !== undefined) student.degree = degree;
     student.knownSkills = parsedSkills;
 
     // Update resume if provided
@@ -255,97 +259,75 @@ router.post('/upload-resume-direct/:email', upload.single('resume'), async (req,
   }
 });
 
+/**
+ * Modular Local Resume Parser
+ * Strictly rule-based (Regex + Local Dictionary)
+ * No external API dependencies.
+ */
+const parseResume = (text) => {
+    const lowerText = text.toLowerCase();
+    
+    // 1. Contact Patterns
+    const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    const githubLink = (text.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_-]+)/i) || [])[0] || "";
+    const leetcodeLink = (text.match(/(?:https?:\/\/)?(?:www\.)?leetcode\.com\/([a-zA-Z0-9_-]+)/i) || [])[0] || "";
+
+    // 2. Name Heuristic
+    let name = "";
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+    for (let line of lines.slice(0, 5)) {
+        if (/^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+$/.test(line)) {
+            name = line;
+            break;
+        }
+    }
+
+    // 3. Skill Matching (Dictionary-based)
+    const dictionary = [
+        "Java", "JavaScript", "Python", "C++", "SQL", "React", "Node.js", "Express",
+        "MongoDB", "MySQL", "Git", "Docker", "Firebase", "HTML", "CSS", "TypeScript",
+        "PostgreSQL", "AWS", "Azure", "Flutter", "Swift", "Kotlin", "Spring Boot",
+        "Next.js", "TailwindCSS", "Redux", "GraphQL", "Kubernetes", "MERN"
+    ];
+    
+    const extractedSkills = new Set();
+    dictionary.forEach(skill => {
+        const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+        if (regex.test(text)) extractedSkills.add(skill);
+    });
+
+    // 4. Academic Heuristic
+    let college = "";
+    for (let line of lines) {
+        if (/college|university|institute|school|technology|engineering/i.test(line) && line.length < 100) {
+            college = line;
+            break;
+        }
+    }
+
+    return {
+        name,
+        email: emailMatch ? emailMatch[0] : "",
+        profiles: { github: githubLink, leetcode: leetcodeLink },
+        skills: Array.from(extractedSkills),
+        education: { college, branch: "", year: "" }
+    };
+};
+
 // @route   POST /student/parse-resume
-// @desc    Local Rule-Based Resume Parsing (Strictly No APIs)
+// @desc    Local Resume Parsing (Clean Fragment Version)
 // @access  Public
 router.post('/parse-resume', upload.single('resume'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: 'Resume PDF is required' });
 
-        let dataBuffer;
-        const filePath = req.file.path;
-
-        if (filePath.startsWith('http')) {
-            const response = await axios.get(filePath, { responseType: 'arraybuffer' });
-            dataBuffer = Buffer.from(response.data);
-        } else {
-            dataBuffer = fs.readFileSync(filePath);
-        }
-
+        const dataBuffer = fs.readFileSync(req.file.path);
         const pdfData = await pdfParse(dataBuffer);
         const text = pdfData.text || "";
-        const lowerText = text.toLowerCase();
 
-        // 1. Regex Extraction (Improved Local Patterns)
-        const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        
-        const githubLink = (() => {
-            const match = text.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_-]+)/i);
-            return match ? `https://github.com/${match[1]}` : "";
-        })();
-
-        const leetcodeLink = (() => {
-            const match = text.match(/(?:https?:\/\/)?(?:www\.)?leetcode\.com\/([a-zA-Z0-9_-]+)/i);
-            return match ? `https://leetcode.com/${match[1]}` : "";
-        })();
-
-        // 1b. Basic Name Extraction (Heuristics)
-        let extractedName = "";
-        const textLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-        if (textLines.length > 0) {
-            // Usually the first line with uppercase letters and no digits or special chars
-            for (let line of textLines.slice(0, 3)) {
-                if (/^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+$/.test(line) && line.length < 50) {
-                    extractedName = line;
-                    break;
-                }
-            }
-        }
-
-        // 2. Skill Dictionary (Local Knowledge Base)
-        const dictionary = [
-            "Java", "JavaScript", "Python", "C++", "SQL", "React", "Node.js", "Express",
-            "MongoDB", "MySQL", "Git", "Docker", "Firebase", "HTML", "CSS", "TypeScript",
-            "PostgreSQL", "AWS", "Azure", "Flutter", "Swift", "Kotlin", "Spring Boot",
-            "Next.js", "TailwindCSS", "Redux", "GraphQL", "Kubernetes"
-        ];
-        
-        const extractedSkills = new Set();
-        dictionary.forEach(skill => {
-            const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-            if (regex.test(text)) extractedSkills.add(skill);
-        });
-
-        // 3. Inference Logic (MERN, Frontend, etc.)
-        if (lowerText.includes("mern")) ["MongoDB", "Express", "React", "Node.js"].forEach(s => extractedSkills.add(s));
-        if (lowerText.includes("frontend")) ["HTML", "CSS", "JavaScript"].forEach(s => extractedSkills.add(s));
-        if (lowerText.includes("backend")) ["Node.js", "Express", "SQL"].forEach(s => extractedSkills.add(s));
-
-        // 4. Academic Extraction
-        let college = "";
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 5);
-        for (let line of lines) {
-            if (/college|university|institute|school|technology|engineering/i.test(line) && line.length < 100) {
-                college = line;
-                break;
-            }
-        }
-
-        const parsedData = {
-            name: extractedName,
-            email: emailMatch ? emailMatch[0] : "",
-            profiles: {
-                github: githubLink,
-                leetcode: leetcodeLink
-            },
-            skills: Array.from(extractedSkills),
-            education: {
-                college: college || "",
-                branch: "",
-                year: ""
-            }
-        };
+        // Use the modular extraction function
+        const parsedData = parseResume(text);
 
         res.json({ success: true, parsedData, resumeText: text });
 

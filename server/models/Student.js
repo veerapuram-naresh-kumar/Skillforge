@@ -6,12 +6,14 @@ const studentSchema = new mongoose.Schema({
   college: { type: String, required: true },
   branch: { type: String, required: true },
   year: { type: String, required: true },
-  resumeUrl: { type: String, required: true }, // URL from cloudinary or local uploads
+  resumeUrl: { type: String }, // URL from cloudinary or local uploads (optional)
   resumeBuffer: { type: Buffer }, // Binary storage of the actual PDF file
   resumeMimeType: { type: String }, // MIME type (application/pdf)
   resumeFileName: { type: String }, // Original file name
   githubLink: { type: String },
   leetcodeLink: { type: String },
+  cgpa: { type: String }, // CGPA or percentage entered by the student
+  degree: { type: String }, // e.g. B.Tech, MCA
   knownSkills: [{
     type: String,
     lowercase: true,
